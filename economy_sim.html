@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游戏经济系统模拟器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f5f7;--surface:#ffffff;--border:#dde0e8;
+  --gold:#92400e;--gold-dim:#c8a84b;--gold-bg:#fef3c7;
+  --green:#16a34a;--green-bg:#dcfce7;
+  --red:#dc2626;--red-bg:#fee2e2;
+  --blue:#2563eb;--blue-bg:#dbeafe;
+  --purple:#7c3aed;--purple-bg:#ede9fe;
+  --text:#1a1d27;--dim:#888;--dimmer:#bbb;
+}
+body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:16px}
+h1{text-align:center;font-size:19px;font-weight:800;letter-spacing:3px;color:var(--gold);margin-bottom:16px}
+.layout{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:340px 1fr;gap:14px;align-items:start}
+@media(max-width:800px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.ptitle{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.ptitle::before{content:'';display:block;width:3px;height:11px;border-radius:2px;background:var(--gold-dim);flex-shrink:0}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+@media(max-width:800px){.stat-grid{grid-template-columns:1fr 1fr}}
+.stat{background:var(--bg);border-radius:7px;padding:10px;border:1px solid var(--border)}
+.stat-label{font-size:10px;color:var(--dim);margin-bottom:3px}
+.stat-val{font-size:22px;font-weight:900;line-height:1}
+.stat-val.gold{color:var(--gold)}.stat-val.green{color:var(--green)}.stat-val.blue{color:var(--blue)}.stat-val.purple{color:var(--purple)}.stat-val.red{color:var(--red)}
+.stat-sub{font-size:10px;color:var(--dim);margin-top:2px}
+.btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;font-family:inherit;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--gold-dim);color:var(--gold)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.primary{background:var(--gold-bg);border-color:var(--gold-dim);color:var(--gold)}
+.btn.primary:hover:not(:disabled){box-shadow:0 0 0 2px rgba(146,64,14,.15)}
+.btn.danger{border-color:#fca5a5;color:var(--red)}.btn.danger:hover{background:var(--red-bg)}
+.op-card{background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--border);margin-bottom:8px}
+.op-title{font-size:11px;color:var(--dim);margin-bottom:6px}
+.op-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cost-hint{font-size:11px;color:var(--dim)}
+.win-lose-row{display:flex;gap:8px;margin-bottom:8px}
+.wl-btn{flex:1;padding:10px;border-radius:7px;border:2px solid var(--border);background:var(--bg);color:var(--dim);font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;text-align:center;font-family:inherit}
+.wl-btn:hover{opacity:.8}
+.wl-btn.active-win{border-color:var(--green);color:var(--green);background:var(--green-bg)}
+.wl-btn.active-lose{border-color:var(--red);color:var(--red);background:var(--red-bg)}
+.pred-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.pred{background:var(--bg);border-radius:7px;padding:10px;border:1px solid var(--border);position:relative;overflow:hidden}
+.pred::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.pred.pg::before{background:var(--gold-dim)}.pred.pl::before{background:var(--blue)}
+.pred.pd::before{background:var(--green)}.pred.pm::before{background:var(--red)}
+.pred-label{font-size:10px;color:var(--dim);margin-bottom:4px;letter-spacing:.05em}
+.pred-val{font-size:24px;font-weight:900;line-height:1}
+.pred.pg .pred-val{color:var(--gold)}.pred.pl .pred-val{color:var(--blue)}
+.pred.pd .pred-val{color:var(--green)}.pred.pm .pred-val{color:var(--red)}
+.pred-sub{font-size:10px;color:var(--dim);margin-top:3px;line-height:1.5}
+.hist-table{width:100%;border-collapse:collapse;font-size:11px}
+.hist-table th{text-align:left;color:var(--dim);font-weight:700;padding:6px 7px;border-bottom:2px solid var(--border);font-size:10px;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;background:var(--bg)}
+.hist-table td{padding:5px 7px;border-bottom:1px solid var(--border);white-space:nowrap}
+.hist-table tr:last-child td{border-bottom:none}
+.hist-table tr:hover td{background:#fafbfc}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700}
+.bw{background:var(--green-bg);color:var(--green);border:1px solid #86efac}
+.bl{background:var(--red-bg);color:var(--red);border:1px solid #fca5a5}
+.bg{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-dim)}
+.bp{background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd}
+.exp-bar-wrap{background:var(--border);border-radius:4px;height:5px;overflow:hidden;margin-top:4px}
+.exp-bar{height:5px;background:linear-gradient(90deg,var(--purple),#a78bfa);border-radius:4px;transition:width .3s}
+.round-end-banner{background:linear-gradient(135deg,#f0fdf4,#fefce8);border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;line-height:1.9;display:none}
+.round-end-banner.show{display:block}
+.game-over{text-align:center;padding:20px;display:none}
+.game-over.show{display:block}
+.game-over h2{font-size:26px;font-weight:900;color:var(--gold);margin-bottom:8px}
+.divider{height:1px;background:var(--border);margin:10px 0}
+.small{font-size:10px;color:var(--dimmer);line-height:1.7}
+.interest-preview{font-size:11px;color:var(--purple);font-weight:700}
+.param-input{background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:5px 8px;outline:none;width:80px;font-family:inherit}
+.param-input:focus{border-color:var(--gold-dim)}
+.level-row{display:flex;align-items:center;gap:5px;padding:2px 0}
+.level-label{font-size:10px;color:var(--dim);min-width:72px;white-space:nowrap}
+.level-slider{flex:1;height:4px;accent-color:var(--gold-dim);cursor:pointer}
+.level-input{width:44px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;font-size:11px;text-align:center;font-family:inherit;color:var(--text);background:var(--bg)}
+.level-input:focus{border-color:var(--gold-dim);outline:none}
+.level-cum{font-size:9px;color:var(--dimmer);min-width:46px;text-align:right;white-space:nowrap}
+</style>
+</head>
+<body>
+<h1>游戏经济系统模拟器</h1>
+<div class="layout">
+
+<!-- 左列 -->
+<div style="display:flex;flex-direction:column;gap:10px">
+  <div class="panel">
+    <div class="ptitle">当前状态</div>
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-label">手中金币</div>
+        <div class="stat-val gold" id="stGold">6</div>
+        <div class="stat-sub interest-preview" id="stInterest">利息预览: +0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">累计获得金币</div>
+        <div class="stat-val gold" id="stTotalGold">6</div>
+        <div class="stat-sub" id="stRound">第 1 / 10 回合</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">经验 / 等级</div>
+        <div class="stat-val blue" id="stExp">0</div>
+        <div class="exp-bar-wrap"><div class="exp-bar" id="expBar" style="width:0%"></div></div>
+        <div class="stat-sub" id="stExpNext">本级还差: 10</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">等级 / 连胜连败</div>
+        <div class="stat-val green" id="stLevel">Lv.0</div>
+        <div class="stat-sub" id="stStreak">连胜: 0 / 连败: 0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">当前抽牌次数</div>
+        <div class="stat-val purple" id="stTotalDraws">0</div>
+        <div class="stat-sub" id="stDrawsSub">本局累计</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">生命值</div>
+        <div class="stat-val red" id="stHp">100</div>
+        <div class="stat-sub" id="stHpSub">剩余生命</div>
+      </div>
+    </div>
+    <div class="round-end-banner" id="roundEndBanner"></div>
+    <div id="actionArea">
+      <div class="op-card">
+        <div class="op-title">🃏 抽牌 — 首次免费，之后每次 2💰</div>
+        <div class="op-row">
+          <button class="btn primary" id="btnDraw" onclick="doDraw()">抽 1 张</button>
+          <span class="cost-hint" id="drawCostHint">费用: 免费</span>
+          <span style="font-size:12px;color:var(--dim)">本回合已抽: <b id="drawsThisRound" style="color:var(--green)">0</b> 次</span>
+        </div>
+      </div>
+      <div class="op-card">
+        <div class="op-title">⚡ 购买经验 — 花 4💰 得 4 经验</div>
+        <div class="op-row">
+          <button class="btn" id="btnBuyExp" onclick="doBuyExp()">买 1 次 (−4💰 +4exp)</button>
+          <span class="cost-hint" id="buyExpHint"></span>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:10px;color:var(--dim);margin-bottom:6px">选择本回合对战结果</div>
+      <div class="win-lose-row">
+        <button class="wl-btn" id="btnWin" onclick="selectWL('win')">🏆 胜利</button>
+        <button class="wl-btn" id="btnLose" onclick="selectWL('lose')">💀 失败</button>
+      </div>
+      <button class="btn primary" id="btnNext" onclick="nextRound()" disabled style="width:100%;padding:10px">下一回合 →</button>
+    </div>
+    <div class="game-over" id="gameOver">
+      <h2>游戏结束</h2>
+      <div id="gameOverSub" style="color:var(--dim);margin-bottom:12px;font-size:13px"></div>
+      <button class="btn primary" onclick="initGame()" style="padding:10px 30px">重新开始</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle" style="cursor:pointer" onclick="toggleSettings()">
+      参数设置 <span id="settingsToggle" style="margin-left:auto;font-size:12px;color:var(--dim)">▼</span>
+    </div>
+    <div id="settingsBody">
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--dim);min-width:110px">初始金币</span>
+          <input type="number" class="param-input" id="cfgInitGold" value="10" min="0">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--dim);min-width:110px">每回合收入</span>
+          <input type="number" class="param-input" id="cfgGoldPerRound" value="4" min="0">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--dim);min-width:110px">利息上限</span>
+          <input type="number" class="param-input" id="cfgMaxInterest" value="5" min="0">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--dim);min-width:110px">游戏结束回合</span>
+          <input type="number" class="param-input" id="cfgEndRound" value="13" min="1" max="30">
+        </div>
+        <div id="hpLossEditor" style="margin-top:8px;margin-bottom:8px">
+          <div style="font-size:10px;color:var(--dimmer);padding-top:2px;margin-bottom:6px;cursor:pointer" onclick="toggleHpLossEditor()">
+            扣血范围配置 <span id="hpLossToggle" style="margin-left:auto;font-size:12px;color:var(--dim)">▶</span>
+          </div>
+          <div id="hpLossBody" style="display:none">
+            <div style="font-size:9px;color:var(--dimmer);margin-bottom:4px">
+              每回合失败时掉血范围 [min, max]（第15回合及以后使用第15回合范围）
+            </div>
+            <div id="hpLossRows" style="max-height:200px;overflow-y:auto;padding:4px;background:var(--bg);border-radius:6px;border:1px solid var(--border)"></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn" type="button" onclick="resetHpLossRanges()" style="font-size:10px;padding:4px 10px">恢复默认</button>
+            </div>
+          </div>
+        </div>
+        <div id="levelEditor">
+          <div style="font-size:10px;color:var(--dimmer);padding-top:2px;margin-bottom:6px">
+            等级配置（拖动滑块或输入数值，范围 1-60）
+          </div>
+          <div id="levelRows"></div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button class="btn" type="button" onclick="addLevel()" style="font-size:10px;padding:4px 10px">+ 添加等级</button>
+            <button class="btn" type="button" onclick="removeLevel()" style="font-size:10px;padding:4px 10px">- 删除最后一级</button>
+          </div>
+        </div>
+        <button class="btn danger" onclick="initGame()" style="margin-top:4px">重置游戏</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 右列 -->
+<div style="display:flex;flex-direction:column;gap:10px">
+  <div class="panel">
+    <div class="ptitle">
+      剩余回合极值预测
+      <span style="margin-left:auto;font-size:10px;color:var(--dim)">穷举所有胜负 × 最优/最差策略</span>
+    </div>
+    <div class="pred-grid">
+      <div class="pred pg">
+        <div class="pred-label">最多累计金币</div>
+        <div class="pred-val" id="predMaxGold">—</div>
+        <div class="pred-sub" id="predMaxGoldSub"></div>
+      </div>
+      <div class="pred pl">
+        <div class="pred-label">最少累计金币</div>
+        <div class="pred-val" id="predMinGold">—</div>
+        <div class="pred-sub" id="predMinGoldSub"></div>
+      </div>
+      <div class="pred pd">
+        <div class="pred-label">最多剩余抽牌次数</div>
+        <div class="pred-val" id="predMaxDraw">—</div>
+        <div class="pred-sub" id="predMaxDrawSub"></div>
+      </div>
+      <div class="pred pm">
+        <div class="pred-label">剩余最少抽牌次数</div>
+        <div class="pred-val" id="predMinDraw">—</div>
+        <div class="pred-sub" id="predMinDrawSub"></div>
+      </div>
+    </div>
+    <div class="small" id="predNote"></div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle">回合历史记录</div>
+    <div style="overflow-x:auto">
+      <table class="hist-table">
+        <thead>
+          <tr>
+            <th>回合</th><th>胜负</th><th>战斗奖励</th><th>连胜/败奖励</th>
+            <th>利息</th><th>抽牌</th><th>买经验</th><th>经验→等级</th>
+            <th>掉血</th><th>剩余生命</th>
+            <th>末金币</th><th>累计金币</th>
+          </tr>
+        </thead>
+        <tbody id="histBody">
+          <tr><td colspan="12" style="color:var(--dim);text-align:center;padding:16px">暂无记录</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ══ 常量 ══
+const DRAW_COST      = 2;
+const BUY_EXP_COST   = 4;
+const BUY_EXP_GAIN   = 4;
+const EXP_PER_ROUND  = 2;
+const INIT_HP        = 100;
+
+// ══ 扣血范围配置 ══
+let gHpLossRanges = [
+  [2, 6],    // 第1回合
+  [3, 7],    // 第2回合
+  [4, 8],    // 第3回合
+  [5, 9],    // 第4回合
+  [6, 10],   // 第5回合
+  [8, 14],   // 第6回合
+  [10, 16],  // 第7回合
+  [12, 18],  // 第8回合
+  [14, 20],  // 第9回合
+  [16, 22],  // 第10回合
+  [18, 26],  // 第11回合
+  [21, 33],  // 第12回合
+  [25, 37],  // 第13回合
+  [25, 40],  // 第14回合
+  [25, 40],  // 第15回合及以后
+];
+
+function toggleHpLossEditor() {
+  const body = document.getElementById('hpLossBody');
+  const tog = document.getElementById('hpLossToggle');
+  const vis = body.style.display !== 'none';
+  body.style.display = vis ? 'none' : 'block';
+  tog.textContent = vis ? '▶' : '▼';
+  if (!vis) renderHpLossEditor();
+}
+
+function renderHpLossEditor() {
+  const container = document.getElementById('hpLossRows');
+  if (!container) return;
+  container.innerHTML = gHpLossRanges.map((range, i) => {
+    const round = i + 1;
+    const label = round === 15 ? `第${round}+回合` : `第${round}回合`;
+    return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px">
+      <span style="color:var(--dim);min-width:70px">${label}</span>
+      <span style="color:var(--dim);font-size:10px">min:</span>
+      <input type="number" class="level-input" style="width:50px" min="0" max="100" value="${range[0]}"
+             oninput="onHpLossRangeChange(${i}, 0, this.value)">
+      <span style="color:var(--dim);font-size:10px">max:</span>
+      <input type="number" class="level-input" style="width:50px" min="0" max="100" value="${range[1]}"
+             oninput="onHpLossRangeChange(${i}, 1, this.value)">
+    </div>`;
+  }).join('');
+}
+
+function onHpLossRangeChange(idx, minMax, val) {
+  const v = Math.max(0, Math.min(100, parseInt(val) || 0));
+  if (gHpLossRanges[idx][minMax] === v) return;
+  gHpLossRanges[idx][minMax] = v;
+  // 确保min <= max
+  if (minMax === 0 && v > gHpLossRanges[idx][1]) {
+    gHpLossRanges[idx][1] = v;
+  } else if (minMax === 1 && v < gHpLossRanges[idx][0]) {
+    gHpLossRanges[idx][0] = v;
+  }
+  renderHpLossEditor();
+  if (G && G.phase !== 'over') { updateUI(); computePrediction(); }
+}
+
+function resetHpLossRanges() {
+  gHpLossRanges = [
+    [2, 6], [3, 7], [4, 8], [5, 9], [6, 10],
+    [8, 14], [10, 16], [12, 18], [14, 20], [16, 22],
+    [18, 26], [21, 33], [25, 37], [25, 40], [25, 40]
+  ];
+  renderHpLossEditor();
+  if (G && G.phase !== 'over') { updateUI(); computePrediction(); }
+}
+
+// ══ 动态等级系统 ══
+let gLevelXP = [2, 8, 18, 24, 30];
+
+function getLevelXP() { return gLevelXP; }
+function getExpThresholds() { let a = 0; return gLevelXP.map(v => (a += v, a)); }
+function getExpMax() { const t = getExpThresholds(); return t.length > 0 ? t[t.length - 1] : 0; }
+
+function getStreakBonus(streak) {
+  if (streak >= 7) return 3;
+  if (streak >= 6) return 2;
+  if (streak >= 5) return 1;
+  if (streak >= 4) return 1;
+  if (streak >= 3) return 1;
+  return 0;
+}
+function getInterest(gold, maxInt) { return Math.min(Math.floor(gold / 10), maxInt); }
+
+// 获取第round回合的掉血范围 [min, max]
+function getHpLossRange(round) {
+  const idx = Math.min(round, 15) - 1;
+  return gHpLossRanges[Math.max(0, idx)] || gHpLossRanges[14];
+}
+
+// 获取第round回合的随机掉血量
+function getRandomHpLoss(round) {
+  const [min, max] = getHpLossRange(round);
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function getLevel(exp) {
+  const th = getExpThresholds();
+  let lv = 1;
+  for (let i = 0; i < th.length; i++) if (exp >= th[i]) lv = i + 2;
+  return lv;
+}
+function isMaxLevel(exp) { return getExpThresholds().length > 0 && exp >= getExpMax(); }
+function getLevelProgress(exp) {
+  const lv = getLevel(exp);
+  const xpArr = getLevelXP();
+  const th = getExpThresholds();
+  if (isMaxLevel(exp))
+    return { pct: 100, need: 0, levelExp: xpArr[xpArr.length - 1], levelNeed: xpArr[xpArr.length - 1] };
+  const prev = lv === 1 ? 0 : th[lv - 2];
+  const levelNeed = xpArr[lv - 1];
+  const levelExp  = exp - prev;
+  return { pct: (levelExp / levelNeed * 100).toFixed(1), need: levelNeed - levelExp, levelExp, levelNeed };
+}
+
+// ══ 等级编辑器交互 ══
+function renderLevelEditor() {
+  const container = document.getElementById('levelRows');
+  if (!container) return;
+  let cum = 0;
+  container.innerHTML = gLevelXP.map((xp, i) => {
+    cum += xp;
+    return `<div class="level-row">
+      <span class="level-label">Lv.${i+1}→${i+2}</span>
+      <input type="range" class="level-slider" min="1" max="60" value="${xp}"
+             oninput="onLevelXPChange(${i}, this.value)">
+      <input type="number" class="level-input" min="1" max="60" value="${xp}"
+             oninput="onLevelXPChange(${i}, this.value)">
+      <span class="level-cum">累${cum}</span>
+    </div>`;
+  }).join('');
+}
+
+function onLevelXPChange(idx, val) {
+  const v = Math.max(1, Math.min(60, parseInt(val) || 1));
+  if (gLevelXP[idx] === v) return;
+  gLevelXP[idx] = v;
+  renderLevelEditor();
+  if (G && G.phase !== 'over') { updateUI(); computePrediction(); }
+}
+
+function addLevel() {
+  gLevelXP.push(10);
+  renderLevelEditor();
+  if (G && G.phase !== 'over') { updateUI(); computePrediction(); }
+}
+
+function removeLevel() {
+  if (gLevelXP.length <= 1) return;
+  gLevelXP.pop();
+  renderLevelEditor();
+  if (G && G.phase !== 'over') { updateUI(); computePrediction(); }
+}
+
+// ══ 游戏状态 ══
+let G = {};
+
+function initGame() {
+  const initGold = parseInt(document.getElementById('cfgInitGold').value) || 6;
+  const endRound = parseInt(document.getElementById('cfgEndRound').value) || 10;
+  G = {
+    gold: initGold, totalGold: initGold,
+    exp: 0, round: 1, endRound,
+    winStreak: 0, loseStreak: 0,
+    drawsThisRound: 0, totalDraws: 0, buyExpThisRound: 0,
+    hp: INIT_HP, hpLossThisRound: 0,
+    selectedWL: null, history: [], phase: 'action',
+  };
+  document.getElementById('roundEndBanner').classList.remove('show');
+  document.getElementById('gameOver').classList.remove('show');
+  document.getElementById('actionArea').style.display = 'block';
+  roundStart();
+  updateUI();
+  computePrediction();
+}
+
+function roundStart() {
+  const gpr = parseInt(document.getElementById('cfgGoldPerRound').value) || 4;
+  if (G.round > 1) { G.gold += gpr; G.totalGold += gpr; }
+  G.drawsThisRound = 0;
+  G.buyExpThisRound = 0;
+  G.hpLossThisRound = 0;
+  G.selectedWL = null;
+  // 自动抽免费1次
+  G.drawsThisRound = 1;
+  G.totalDraws++;
+  updateWLButtons();
+  document.getElementById('btnNext').disabled = true;
+  document.getElementById('roundEndBanner').classList.remove('show');
+}
+
+// ══ 玩家操作 ══
+function doDraw() {
+  const cost = G.drawsThisRound === 0 ? 0 : DRAW_COST;
+  if (cost > 0 && G.gold < cost) return;
+  G.gold -= cost;
+  G.drawsThisRound++;
+  G.totalDraws++;
+  updateUI(); computePrediction();
+}
+function doBuyExp() {
+  if (G.gold < BUY_EXP_COST) return;
+  G.gold -= BUY_EXP_COST;
+  G.exp  += BUY_EXP_GAIN;
+  G.buyExpThisRound += BUY_EXP_GAIN;
+  updateUI(); computePrediction();
+}
+function selectWL(wl) {
+  G.selectedWL = wl;
+  updateWLButtons();
+  document.getElementById('btnNext').disabled = false;
+}
+function updateWLButtons() {
+  document.getElementById('btnWin').className  = 'wl-btn' + (G.selectedWL === 'win'  ? ' active-win'  : '');
+  document.getElementById('btnLose').className = 'wl-btn' + (G.selectedWL === 'lose' ? ' active-lose' : '');
+}
+
+function nextRound() {
+  if (!G.selectedWL) return;
+  const maxInt = parseInt(document.getElementById('cfgMaxInterest').value) || 5;
+  const win    = G.selectedWL === 'win';
+
+  // ── 最终回合特殊处理 ──
+  if (G.round === G.endRound) {
+    // 剩余金币全部拿来抽牌
+    const additionalDraws = Math.floor(G.gold / DRAW_COST);
+    G.gold -= additionalDraws * DRAW_COST;
+    G.totalDraws += additionalDraws;
+
+    G.history.push({
+      round: G.round, win, streak: 0,
+      battleGold: 0, streakBonus: 0, interest: 0,
+      draws: G.drawsThisRound + additionalDraws, expBought: G.buyExpThisRound,
+      expTotal: G.exp, level: getLevel(G.exp),
+      goldEnd: G.gold, totalGold: G.totalGold,
+      hpLoss: 0, hp: G.hp,
+    });
+
+    G.phase = 'over';
+    document.getElementById('actionArea').style.display = 'none';
+    document.getElementById('gameOver').classList.add('show');
+    document.getElementById('gameOverSub').innerHTML =
+      `共 ${G.endRound} 回合完成 · 累计获得 <b style="color:var(--gold)">${G.totalGold}</b> 金币 · 累计抽牌 <b style="color:var(--green)">${G.totalDraws}</b> 次 · 剩余生命 <b style="color:var(--red)">${G.hp}</b>`;
+    updateUI(); renderHistory(); return;
+  }
+
+  // ① 胜负奖励 + 连胜/连败奖励 + 失败掉血
+  const battleGold = win ? 1 : 0;
+  let hpLoss = 0;
+  if (win) { G.winStreak++; G.loseStreak = 0; }
+  else     { G.loseStreak++; G.winStreak = 0; hpLoss = getRandomHpLoss(G.round); G.hp -= hpLoss; G.hpLossThisRound = hpLoss; }
+
+  // 检查生命值是否归零
+  if (G.hp <= 0) {
+    // 血量归零：剩余金币全部拿来抽牌
+    const additionalDraws = Math.floor(G.gold / DRAW_COST);
+    G.gold -= additionalDraws * DRAW_COST;
+    G.totalDraws += additionalDraws;
+
+    G.history.push({
+      round: G.round, win, streak: win ? G.winStreak : G.loseStreak,
+      battleGold, streakBonus: getStreakBonus(win ? G.winStreak : G.loseStreak), interest: 0,
+      draws: G.drawsThisRound + additionalDraws, expBought: G.buyExpThisRound,
+      expTotal: G.exp, level: getLevel(G.exp),
+      goldEnd: G.gold, totalGold: G.totalGold,
+      hpLoss, hp: 0,
+    });
+
+    G.phase = 'over';
+    document.getElementById('actionArea').style.display = 'none';
+    document.getElementById('gameOver').classList.add('show');
+    document.getElementById('gameOverSub').innerHTML =
+      `第 ${G.round} 回合生命值耗尽 · 累计获得 <b style="color:var(--gold)">${G.totalGold}</b> 金币 · 累计抽牌 <b style="color:var(--green)">${G.totalDraws}</b> 次`;
+    updateUI(); renderHistory(); return;
+  }
+
+  const streak      = win ? G.winStreak : G.loseStreak;
+  const streakBonus = getStreakBonus(streak);
+  G.gold      += battleGold + streakBonus;
+  G.totalGold += battleGold + streakBonus;
+
+  // ② 利息
+  const interest = getInterest(G.gold, maxInt);
+  G.gold      += interest;
+  G.totalGold += interest;
+
+  // ③ 自然经验
+  G.exp += EXP_PER_ROUND;
+
+  G.history.push({
+    round: G.round, win, streak,
+    battleGold, streakBonus, interest,
+    draws: G.drawsThisRound, expBought: G.buyExpThisRound,
+    expTotal: G.exp, level: getLevel(G.exp),
+    goldEnd: G.gold, totalGold: G.totalGold,
+    hpLoss, hp: G.hp,
+  });
+
+  let b = `<b style="color:var(--gold)">第${G.round}回合结算：</b><br>`;
+  b += `① 对战 ${win ? '<b style="color:var(--green)">胜利 +1💰</b>' : `<b style="color:var(--red)">失败 -${hpLoss}❤️</b>`}`;
+  if (streakBonus > 0) b += ` → ${win?'连胜':'连败'}${streak} 奖励 <b style="color:var(--gold)">+${streakBonus}💰</b>`;
+  b += ` → ② 利息 <b style="color:var(--purple)">+${interest}💰</b> → ③ 自然经验 +${EXP_PER_ROUND}`;
+  document.getElementById('roundEndBanner').innerHTML = b;
+  document.getElementById('roundEndBanner').classList.add('show');
+
+  G.round++;
+  roundStart(); updateUI(); renderHistory(); computePrediction();
+}
+
+// ══ UI ══
+function updateUI() {
+  const maxInt = parseInt(document.getElementById('cfgMaxInterest').value) || 5;
+  document.getElementById('stGold').textContent      = G.gold;
+  document.getElementById('stTotalGold').textContent = G.totalGold;
+  document.getElementById('stRound').textContent     = `第 ${G.round} / ${G.endRound} 回合`;
+  document.getElementById('stExp').textContent       = G.exp;
+  document.getElementById('stLevel').textContent     = `Lv.${getLevel(G.exp)}`;
+  document.getElementById('stStreak').textContent    = `连胜: ${G.winStreak} / 连败: ${G.loseStreak}`;
+  document.getElementById('stInterest').textContent  = `利息预览: +${getInterest(G.gold, maxInt)}`;
+  document.getElementById('stTotalDraws').textContent = G.totalDraws;
+  document.getElementById('stHp').textContent = G.hp;
+  document.getElementById('stHpSub').textContent = G.hpLossThisRound > 0 ? `本回合掉血: -${G.hpLossThisRound}` : '剩余生命';
+
+  const prog = getLevelProgress(G.exp);
+  document.getElementById('expBar').style.width = prog.pct + '%';
+  document.getElementById('stExpNext').textContent = isMaxLevel(G.exp)
+    ? '已满级'
+    : `本级还差: ${prog.need}（${prog.levelExp}/${prog.levelNeed}）`;
+
+  const drawCost = G.drawsThisRound === 0 ? 0 : DRAW_COST;
+  document.getElementById('drawCostHint').textContent   = `费用: ${drawCost === 0 ? '免费' : drawCost + '💰'}`;
+  document.getElementById('drawsThisRound').textContent = G.drawsThisRound;
+  document.getElementById('btnDraw').disabled   = (drawCost > 0 && G.gold < drawCost) || G.phase === 'over';
+  document.getElementById('btnBuyExp').disabled = G.gold < BUY_EXP_COST || G.phase === 'over';
+  document.getElementById('buyExpHint').textContent = isMaxLevel(G.exp) ? '（已满级，经验溢出）' : '';
+}
+
+function renderHistory() {
+  const tbody = document.getElementById('histBody');
+  if (!G.history.length) {
+    tbody.innerHTML = '<tr><td colspan="12" style="color:var(--dim);text-align:center;padding:16px">暂无记录</td></tr>';
+    return;
+  }
+  tbody.innerHTML = G.history.map(h => {
+    const sl    = h.streak >= 2 ? `${h.win?'连胜':'连败'}${h.streak}` : '';
+    const bonus = h.streakBonus > 0 ? `<span class="badge bg">+${h.streakBonus}</span>` : '—';
+    return `<tr>
+      <td>R${h.round}</td>
+      <td><span class="badge ${h.win?'bw':'bl'}">${h.win?'胜':'败'}</span>
+          <span style="font-size:10px;color:var(--dim);margin-left:3px">${sl}</span></td>
+      <td style="color:${h.win?'var(--green)':'var(--dim)'}">+${h.battleGold}💰</td>
+      <td>${bonus}</td>
+      <td><span class="badge bp">+${h.interest}</span></td>
+      <td style="color:var(--green)">${h.draws}次</td>
+      <td>${h.expBought > 0 ? `<span style="color:var(--purple)">+${h.expBought}exp</span>` : '—'}</td>
+      <td>${h.expTotal} <span style="color:var(--dim)">(Lv.${h.level})</span></td>
+      <td style="color:${h.hpLoss > 0 ? 'var(--red)' : 'var(--dim)'}">${h.hpLoss > 0 ? `-${h.hpLoss}❤️` : '—'}</td>
+      <td style="color:var(--red);font-weight:700">${h.hp}</td>
+      <td style="color:var(--gold);font-weight:700">${h.goldEnd}💰</td>
+      <td style="color:var(--gold);font-weight:700">${h.totalGold}</td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleSettings() {
+  const body = document.getElementById('settingsBody');
+  const tog  = document.getElementById('settingsToggle');
+  const vis  = body.style.display !== 'none';
+  body.style.display = vis ? 'none' : 'block';
+  tog.textContent = vis ? '▶' : '▼';
+}
+
+// ══════════════════════════════════════════════════════════
+//  预测引擎
+//  结算顺序：① 胜负+连胜奖励 → ② 利息 → ③ 自然经验
+//
+//  四种策略：
+//  max_gold  : 只抽免费1次，其余金币留存攒利息
+//  min_gold  : 先买经验耗尽金币，再把剩余全抽
+//  max_draw  : 每回合枚举"抽k次"(k=0..max)，贪心选让后续总抽牌最多的k
+//  min_draw  : 未满级时先买经验耗金，剩余零头才抽（至少抽免费1次）
+//              已满级时买不了经验，金币只能全部用于抽牌
+// ══════════════════════════════════════════════════════════
+function computePrediction() {
+  const remaining = G.endRound - G.round + 1;
+  if (remaining <= 0) {
+    ['predMaxGold','predMinGold','predMaxDraw','predMinDraw'].forEach(id =>
+      document.getElementById(id).textContent = '—');
+    return;
+  }
+  const maxInt = parseInt(document.getElementById('cfgMaxInterest').value) || 5;
+  const gpr    = parseInt(document.getElementById('cfgGoldPerRound').value) || 4;
+  const total  = Math.pow(2, remaining);
+
+  if (total > 65536) {
+    document.getElementById('predNote').textContent =
+      `剩余 ${remaining} 回合，共 ${total} 种情况，超出实时计算范围`;
+    return;
+  }
+
+  const snap = {
+    gold: G.gold, totalGold: G.totalGold, exp: G.exp,
+    winStreak: G.winStreak, loseStreak: G.loseStreak,
+    alreadyDrawn: G.drawsThisRound,
+  };
+
+  let bestGold = -Infinity, worstGold = Infinity;
+  let bestDraw = -Infinity, worstDraw = Infinity;
+  let bestGoldSeq = '', worstGoldSeq = '', bestDrawSeq = '', worstDrawSeq = '';
+
+  for (let mask = 0; mask < total; mask++) {
+    const winSeq = [];
+    for (let b = 0; b < remaining; b++) winSeq.push(!!(mask & (1 << b)));
+    const seqStr = winSeq.map((w, i) => `R${G.round + i}:${w ? '胜' : '败'}`).join(' ');
+
+    const rMaxG = simFuture(snap, winSeq, 'max_gold', maxInt, gpr);
+    const rMinG = simFuture(snap, winSeq, 'min_gold', maxInt, gpr);
+    const rMaxD = simFuture(snap, winSeq, 'max_draw', maxInt, gpr);
+    const rMinD = simFuture(snap, winSeq, 'min_draw', maxInt, gpr);
+
+    if (rMaxG.totalGold > bestGold)   { bestGold  = rMaxG.totalGold;  bestGoldSeq  = seqStr; }
+    if (rMinG.totalGold < worstGold)  { worstGold = rMinG.totalGold;  worstGoldSeq = seqStr; }
+    if (rMaxD.totalDraws > bestDraw)  { bestDraw  = rMaxD.totalDraws; bestDrawSeq  = seqStr; }
+    if (rMinD.totalDraws < worstDraw) { worstDraw = rMinD.totalDraws; worstDrawSeq = seqStr; }
+  }
+
+  document.getElementById('predMaxGold').textContent = bestGold;
+  document.getElementById('predMinGold').textContent = worstGold;
+  document.getElementById('predMaxDraw').textContent = bestDraw;
+  document.getElementById('predMinDraw').textContent = worstDraw;
+
+  const short = (s, n = 4) => {
+    const parts = s.split(' ');
+    return parts.slice(0, n).join(' ') + (parts.length > n ? '…' : '');
+  };
+  document.getElementById('predMaxGoldSub').textContent = `最优胜负: ${short(bestGoldSeq)}`;
+  document.getElementById('predMinGoldSub').textContent = `最差胜负: ${short(worstGoldSeq)}`;
+  document.getElementById('predMaxDrawSub').textContent = `最优胜负: ${short(bestDrawSeq)}`;
+  document.getElementById('predMinDrawSub').textContent = `最差胜负: ${short(worstDrawSeq)}`;
+  document.getElementById('predNote').textContent =
+    `穷举 ${total} 种胜负组合 × 4种策略 · 本回合已抽 ${snap.alreadyDrawn} 次`;
+}
+
+// ── 单路径模拟 ──────────────────────────────────────────
+// snap.alreadyDrawn : 当前回合已抽次数（本回合操作已发生的部分）
+function simFuture(snap, winSeq, strategy, maxInt, gpr) {
+  let gold       = snap.gold;
+  let totalGold  = snap.totalGold;
+  let exp        = snap.exp;
+  let winStreak  = snap.winStreak;
+  let loseStreak = snap.loseStreak;
+  let totalDraws = snap.alreadyDrawn;
+  let alreadyDrawn = snap.alreadyDrawn; // 当前回合已经抽了多少次
+
+  for (let r = 0; r < winSeq.length; r++) {
+    const isLast = (r === winSeq.length - 1);
+
+    // 新回合：固定收入 + 自动抽免费1次
+    if (r > 0) {
+      gold += gpr; totalGold += gpr;
+      alreadyDrawn = 0;
+      alreadyDrawn = 1;
+      totalDraws++;
+    }
+
+    // ── 操作阶段：决定本回合新增抽几次 ──
+    let newDraws = 0;
+
+    if (strategy === 'max_gold') {
+      // 只抽免费那次（若还没抽过），不花额外钱
+      if (alreadyDrawn === 0) newDraws = 1;
+
+    } else if (strategy === 'min_gold') {
+      // 先买经验耗尽金币，再把剩余金币全部用于抽牌
+      while (gold >= BUY_EXP_COST) { gold -= BUY_EXP_COST; exp += BUY_EXP_GAIN; }
+      if (alreadyDrawn === 0) newDraws++;        // 免费1次
+      while (gold >= DRAW_COST) { gold -= DRAW_COST; newDraws++; }
+
+    } else if (strategy === 'max_draw') {
+      // 贪心枚举：本回合抽 k 次（k = alreadyDrawn..max），选使"本回合抽数 + 后续可抽数"最大的 k
+      const remainRounds = winSeq.length - r - 1; // 后续还有几回合
+      let bestK = alreadyDrawn, bestEst = -1;
+      const freeLeft = alreadyDrawn === 0 ? 1 : 0;
+      const maxK = alreadyDrawn + freeLeft + Math.floor(gold / DRAW_COST);
+      for (let k = alreadyDrawn; k <= maxK; k++) {
+        const nd = k - alreadyDrawn;
+        const cost = nd === 0 ? 0 : Math.max(0, nd - freeLeft) * DRAW_COST;
+        if (cost > gold) break;
+        const goldAfter = gold - cost;
+        // 估算后续能抽的次数（每回合收入+利息后全抽）
+        let est = nd; // 本回合新增抽数
+        let gSim = goldAfter;
+        for (let rr = 0; rr < remainRounds; rr++) {
+          gSim += gpr;
+          // 结算（用平均胜负：胜+1，败+0，平均+0.5，这里简化为0）
+          const intSim = getInterest(gSim, maxInt); // 粗略利息
+          gSim += intSim;
+          // 假设下一回合也全抽
+          est += 1 + Math.floor(gSim / DRAW_COST); // 1免费 + 付费
+          gSim = gSim % DRAW_COST; // 抽完后剩余零头
+        }
+        if (est > bestEst) { bestEst = est; bestK = k; }
+      }
+      // 执行 bestK 次抽牌
+      newDraws = bestK - alreadyDrawn;
+      const cost = newDraws === 0 ? 0 : Math.max(0, newDraws - freeLeft) * DRAW_COST;
+      gold -= cost;
+
+    } else if (strategy === 'min_draw') {
+      // 未满级：先买经验耗金，剩余零头若够抽就抽，每回合至少抽免费1次
+      // 已满级：买不了经验，金币只能全部用于抽牌
+      if (!isMaxLevel(exp)) {
+        while (gold >= BUY_EXP_COST && !isMaxLevel(exp)) {
+          gold -= BUY_EXP_COST; exp += BUY_EXP_GAIN;
+        }
+        if (alreadyDrawn === 0) newDraws = 1;
+        while (gold >= DRAW_COST) { gold -= DRAW_COST; newDraws++; }
+      } else {
+        // 满级，金币没地方花，只能抽牌
+        if (alreadyDrawn === 0) newDraws++;
+        while (gold >= DRAW_COST) { gold -= DRAW_COST; newDraws++; }
+      }
+    }
+
+    totalDraws += newDraws;
+
+    // ── 回合结算 ──
+    if (isLast) {
+      // 最终回合：剩余金币全部抽牌，不结算战斗/利息/经验
+      const finalDraws = Math.floor(gold / DRAW_COST);
+      gold -= finalDraws * DRAW_COST;
+      totalDraws += finalDraws;
+    } else {
+      const win = winSeq[r];
+      if (win) { winStreak++; loseStreak = 0; }
+      else     { loseStreak++; winStreak = 0; }
+      const sb = getStreakBonus(win ? winStreak : loseStreak);
+      gold      += (win ? 1 : 0) + sb;
+      totalGold += (win ? 1 : 0) + sb;
+
+      const interest = getInterest(gold, maxInt);
+      gold      += interest;
+      totalGold += interest;
+
+      exp += EXP_PER_ROUND;
+    }
+    alreadyDrawn = 0;
+  }
+
+  return { totalGold, totalDraws };
+}
+
+// ══ 启动 ══
+renderLevelEditor();
+renderHpLossEditor();
+initGame();
+</script>
+</body>
+</html>
